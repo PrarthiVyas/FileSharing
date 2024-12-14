@@ -38,10 +38,10 @@ def signup():
         username=request.form.get('username')
         password=request.form.get('password')
         emailid=request.form.get('emailid')
-        new_user=users(username=username,email=emailid,password=password)
+        new_user=table.users(username=username,email=emailid,password=password)
         db.session.add(new_user)
         db.session.commit()  
-        abc = users.query.all()
+        abc = table.users.query.all()
         for i in abc:
             print(i.username)
         return render_template('login.html') 
@@ -52,7 +52,7 @@ def login():
     if request.method=='POST':
         username=request.form.get('name')
         password=request.form.get('password')
-        abc=users.query.filter_by(email=username).first()
+        abc=table.users.query.filter_by(email=username).first()
         print(abc)
         if abc and abc.password==password:
             login_user(abc)
@@ -66,26 +66,46 @@ def login():
 @app.route('/filesharing',methods=['post','get'])
 def filesharing():
     form=UploadForm()
-    file_table = files.query.filter_by(user_id=current_user.id)
 
     if request.method=="POST":
         file = form.file.data  # Get the file from the request
         filename = secure_filename(file.filename)
-        expirationdate = datetime.today() + timedelta(days=1)
-        s3.upload_fileobj(file, 'bucket-name', filename)
+
+        s3.upload_fileobj(file, 'aer0p1an3', filename)
         url = s3.generate_presigned_url('get_object',
-                                                    Params={'Bucket': 'bucket-name',
-                                                            'Key': filename},
-                                                    ExpiresIn=100)
-        
-        file_up=files(file_name=file.filename,expiration_date=expirationdate,created_at=datetime.now(),shared_link=url,user_id=current_user.id)
-        
-        db.session.add(file_up)
+                                                    Params={'Bucket': 'aer0p1an3',
+                                                            'Key': 'register.html'},
+                                                    ExpiresIn=20000)
+        created_at = datetime.now()
+        expiration_date = created_at + timedelta(seconds=20000)
+        abc=table.files(file_name=file.filename,expiration_date=expiration_date,created_at=created_at,shared_link=url,user_id=current_user.id)
+        db.session.add(abc)
         db.session.commit()
-        return redirect(url_for('filesharing'))
 
-    return render_template('filesharing.html',form=form, ft = file_table)
 
+        show=table.files.query.all()
+        for i in show:
+            print(i.file_name)
+
+        
+        return render_template('filesharing.html',form=form)
+
+
+
+    return render_template('filesharing.html',form=form)
+
+@app.route('/show_data')
+@login_required
+def show_data():
+    
+    form=UploadForm()
+    data=table.files.query.filter_by(user_id=current_user.id).all()
+    return render_template('filesharing.html',data=data,form=form)
+
+@app.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 @login_manager.user_loader
 def loader_user(user_id):
     return table.users.query.get(user_id)
