@@ -32,6 +32,7 @@ class UploadForm(FlaskForm):
     ])
     submit = SubmitField('Upload')
 
+
 @app.route('/signup',methods=['GET','POST'])
 def signup():
     if request.method=="POST":
@@ -64,8 +65,10 @@ def login():
 
 
 @app.route('/filesharing',methods=['post','get'])
+@login_required
 def filesharing():
     form=UploadForm()
+    
 
     if request.method=="POST":
         file = form.file.data  # Get the file from the request
@@ -74,17 +77,19 @@ def filesharing():
         s3.upload_fileobj(file, 'aer0p1an3', filename)
         url = s3.generate_presigned_url('get_object',
                                                     Params={'Bucket': 'aer0p1an3',
-                                                            'Key': 'register.html'},
-                                                    ExpiresIn=20000)
-        created_at = datetime.now()
-        expiration_date = created_at + timedelta(seconds=20000)
-        abc=table.files(file_name=file.filename,expiration_date=expiration_date,created_at=created_at,shared_link=url,user_id=current_user.id)
+                                                            'Key': filename},
+                                                    ExpiresIn=60)
+
+        abc=table.files(file_name=file.filename,shared_link=url,user_id=current_user.id)
+        file_table = table.files.query.filter_by(user_id=current_user.id)
+
         db.session.add(abc)
         db.session.commit()
 
 
-        show=table.files.query.all()
-        for i in show:
+
+
+        for i in file_table:
             print(i.file_name)
 
         
@@ -100,7 +105,10 @@ def show_data():
     
     form=UploadForm()
     data=table.files.query.filter_by(user_id=current_user.id).all()
-    return render_template('filesharing.html',data=data,form=form)
+    current_time=datetime.now()
+    print(current_time)
+
+    return render_template('filesharing.html',data=data,form=form,current_time=current_time)
 
 @app.route("/logout")
 def logout():
@@ -110,6 +118,17 @@ def logout():
 def loader_user(user_id):
     return table.users.query.get(user_id)
 
+@app.route('/delete/<int:id>')
+def delete(id):
+    abc=table.files.query.get(id)
+    s3.delete_object(Bucket='aer0p1an3',Key= abc.file_name)
+
+    db.session.delete(abc)
+    db.session.commit()
+    flash("Deleted Successfully")
+    return redirect(url_for('filesharing'))
+
+    
 with app.app_context():
     db.create_all()
 
